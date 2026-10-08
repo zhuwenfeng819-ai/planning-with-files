@@ -1,0 +1,79 @@
+name: Sync from upstream
+
+on:
+  schedule:
+    - cron: "29 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      UPSTREAM_REPO: OthmanAdi/planning-with-files
+      UPSTREAM_BRANCH: master
+      TARGET_BRANCH: master
+      MIRROR_MODE: "false"
+      PUSH_URL: https://x-access-token:${{ secrets.SYNC_TOKEN }}@github.com/${{ github.repository }}.git
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
+          git fetch upstream --tags --prune --force
+
+      - name: Compare with upstream
+        id: check
+        run: |
+          echo "local=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "remote=$(git rev-parse upstream/${UPSTREAM_BRANCH})" >> "$GITHUB_OUTPUT"
+          if [ "$(git rev-parse HEAD)" = "$(git rev-parse upstream/${UPSTREAM_BRANCH})" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge upstream
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          set -e
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ "${MIRROR_MODE}" = "true" ] && ! git merge-base --is-ancestor HEAD upstream/${UPSTREAM_BRANCH}; then
+            echo "镜像模式：本地历史与上游无共同祖先，直接对齐上游"
+            git reset --hard upstream/${UPSTREAM_BRANCH}
+          elif git merge --ff-only upstream/${UPSTREAM_BRANCH}; then
+            echo "fast-forward 同步完成"
+          elif git merge --no-edit -X theirs upstream/${UPSTREAM_BRANCH}; then
+            echo "存在自有提交，已合并上游（冲突处以上游为准）"
+          else
+            git merge --abort || true
+            echo "::error::自动合并失败，需要手动处理"
+            exit 1
+          fi
+
+      - name: Push
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          git push "${PUSH_URL}" HEAD:${TARGET_BRANCH}
+          git push "${PUSH_URL}" --tags --force || echo "tag 推送被跳过"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### 上游同步结果" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 上游: ${UPSTREAM_REPO}@${UPSTREAM_BRANCH}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 同步前: ${{ steps.check.outputs.local }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 上游 HEAD: ${{ steps.check.outputs.remote }}" >> "$GITHUB_STEP_SUMMARY"
