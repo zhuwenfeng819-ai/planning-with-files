@@ -30,11 +30,19 @@ Or edit `~/.gemini/settings.json`:
 
 ## Installation Methods
 
-### Method 1: Install from GitHub (Recommended)
+### Method 1: The Agent Skills standard path (Recommended since v3.7.0)
+
+Gemini CLI reads the cross-tool `.agents/skills/` layout natively (the alias takes precedence over `.gemini/skills/`), and this repo ships the current, version-locked skill there. Either install route lands the up-to-date skill:
 
 ```bash
-gemini skills install https://github.com/OthmanAdi/planning-with-files --path .gemini/skills/planning-with-files
+# via the skills installer (targets Gemini among 70+ agents)
+npx skills add OthmanAdi/planning-with-files
+
+# or from GitHub, pointing at the standard layout
+gemini skills install https://github.com/OthmanAdi/planning-with-files --path .agents/skills/planning-with-files
 ```
+
+The historical `.gemini/skills/` variant in this repo is intentionally version-lagged and kept only for existing installs; new installs should use the standard path above, which is bumped with every release.
 
 ### Method 2: Manual Installation (User-level)
 
@@ -42,8 +50,8 @@ gemini skills install https://github.com/OthmanAdi/planning-with-files --path .g
 # Clone the repository
 git clone https://github.com/OthmanAdi/planning-with-files.git
 
-# Copy to Gemini skills folder
-cp -r planning-with-files/.gemini/skills/planning-with-files ~/.gemini/skills/
+# Copy the current skill from the standard layout to the Gemini skills folder
+cp -r planning-with-files/.agents/skills/planning-with-files ~/.gemini/skills/
 ```
 
 ### Method 3: Manual Installation (Workspace-level)
@@ -54,8 +62,8 @@ For project-specific installation:
 # In your project directory
 mkdir -p .gemini/skills
 
-# Copy skill
-cp -r /path/to/planning-with-files/.gemini/skills/planning-with-files .gemini/skills/
+# Copy the current skill from the standard layout
+cp -r /path/to/planning-with-files/.agents/skills/planning-with-files .gemini/skills/
 ```
 
 ## Verify Installation
@@ -108,31 +116,80 @@ You can also manually enable/disable skills:
 /skills reload
 ```
 
+## Hooks (v2.26.0)
+
+Gemini CLI supports [hooks](https://geminicli.com/docs/hooks/) — lifecycle events that run shell scripts automatically. This skill ships with a `settings.json` that configures 4 hooks:
+
+| Hook Event | What It Does |
+|------------|-------------|
+| **SessionStart** | Recovers selected context from project planning files without reading agent session stores |
+| **BeforeAgent** | Injects the first 30 lines of `task_plan.md` into the user turn through `hookSpecificOutput.additionalContext` |
+| **AfterTool** | Reminds to update `progress.md` after file changes |
+| **SessionEnd** | Reports completion status during shutdown; this is advisory and user-facing only |
+
+Gemini's event-specific output schema matters here: `BeforeAgent` and `AfterTool`
+send model context through `hookSpecificOutput.additionalContext`. `BeforeTool`
+is reserved for tool validation/argument rewriting, and `BeforeModel` accepts
+request/response overrides rather than an `additionalContext` field.
+
+Local agent session history is not part of automatic startup. Explicit `session-catchup.py --metadata <project>` reads same-project local session records and emits aggregate counts only. Use `--replay` for bounded nonce-framed excerpts. The catchup path contains no network request or upload operation.
+
+### Installing Hooks
+
+Copy the hooks configuration to your project:
+
+```bash
+# Copy settings.json (merges with existing settings)
+cp /path/to/planning-with-files/.gemini/settings.json .gemini/settings.json
+
+# Copy hook scripts
+cp -r /path/to/planning-with-files/.gemini/hooks .gemini/hooks
+```
+
+Or for user-level hooks:
+
+```bash
+# Copy to user settings (applies to all projects)
+cp /path/to/planning-with-files/.gemini/settings.json ~/.gemini/settings.json
+cp -r /path/to/planning-with-files/.gemini/hooks ~/.gemini/hooks
+```
+
+> **Note:** If you already have a `settings.json`, merge the `"hooks"` key manually.
+
+---
+
 ## How It Works
 
-1. **Session Start**: Gemini loads skill names and descriptions
+1. **Session Start**: Gemini loads skill names and descriptions, hooks run session recovery
 2. **Task Detection**: When you describe a complex task, Gemini matches it to the skill
 3. **Activation Prompt**: You approve the skill activation
 4. **Instructions Loaded**: Full SKILL.md content is added to context
-5. **Execution**: Gemini follows the planning workflow
+5. **Execution**: BeforeAgent re-injects `task_plan.md` context each user turn; AfterTool reminds the agent to record progress after file changes
 
 ## Skill Structure
 
 ```
-.gemini/skills/planning-with-files/
-├── SKILL.md              # Main skill instructions
-├── templates/
-│   ├── task_plan.md      # Phase tracking template
-│   ├── findings.md       # Research storage template
-│   └── progress.md       # Session logging template
-├── scripts/
-│   ├── init-session.sh   # Initialize planning files
-│   ├── check-complete.sh # Verify completion
-│   ├── init-session.ps1  # Windows PowerShell version
-│   └── check-complete.ps1
-└── references/
-    ├── reference.md      # Manus principles
-    └── examples.md       # Real-world examples
+.gemini/
+├── settings.json             # Hook configuration (v2.26.0)
+├── hooks/                    # Hook scripts
+│   ├── session-start.sh      # Session recovery
+│   ├── before-agent.sh       # Turn-level plan context injection
+│   ├── after-tool.sh         # Progress update reminder
+│   └── session-end.sh        # Advisory completion status
+└── skills/planning-with-files/
+    ├── SKILL.md              # Main skill instructions
+    ├── templates/
+    │   ├── task_plan.md      # Phase tracking template
+    │   ├── findings.md       # Research storage template
+    │   └── progress.md       # Session logging template
+    ├── scripts/
+    │   ├── init-session.sh   # Initialize planning files
+    │   ├── check-complete.sh # Verify completion
+    │   ├── init-session.ps1  # Windows PowerShell version
+    │   └── check-complete.ps1
+    └── references/
+        ├── reference.md      # Manus principles
+        └── examples.md       # Real-world examples
 ```
 
 ## Sharing Skills with Claude Code
@@ -173,4 +230,5 @@ Copy-Item -Recurse -Path ".\.gemini\skills\planning-with-files" -Destination "$e
 
 - [Gemini CLI Documentation](https://geminicli.com/docs/)
 - [Agent Skills Guide](https://geminicli.com/docs/cli/skills/)
+- [Hooks Guide](https://geminicli.com/docs/hooks/)
 - [Skills Tutorial](https://geminicli.com/docs/cli/tutorials/skills-getting-started/)

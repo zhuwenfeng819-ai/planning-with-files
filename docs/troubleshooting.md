@@ -20,18 +20,11 @@ Common issues and their solutions.
 /plugin install planning-with-files@planning-with-files
 ```
 
-### Solution 2: Clear Claude Code cache
+### Solution 2: Inspect the installed plugin
 
-Restart Claude Code completely (close and reopen terminal/IDE).
+Use `claude plugin list` and `claude plugin details` to inspect the installed version and components. Claude Code manages installed files under `~/.claude/plugins/cache/`; do not edit the cached copy in place.
 
-### Solution 3: Manual cache clear
-
-```bash
-# Find and remove cached plugin
-rm -rf ~/.claude/cache/plugins/planning-with-files
-```
-
-Then reinstall the plugin.
+Restart Claude Code completely after reinstalling.
 
 **Note:** This was fixed in v2.1.2 by adding templates at the repo root level.
 
@@ -102,25 +95,28 @@ If files are missing, they may have been created in:
 
 **Solution:**
 
-1. **Check Claude Code version:**
+1. **Use the current stable Claude Code release:**
    ```bash
    claude --version
    ```
-   Hooks require Claude Code v2.1.0 or later for full support.
+   Full lifecycle support is tested against current stable Claude Code. This project does not claim an older minimum without a compatibility receipt.
 
-2. **Verify skill installation:**
+2. **Verify the installation route:**
+   ```bash
+   claude plugin list
+   ```
+   For a standalone skill install:
    ```bash
    ls ~/.claude/skills/planning-with-files/
    ```
-   or
-   ```bash
-   ls .claude/plugins/planning-with-files/
-   ```
 
-3. **Check that task_plan.md exists:**
-   The PreToolUse hook runs `cat task_plan.md`. If the file doesn't exist, the hook silently succeeds (by design).
+3. **Check that an active plan exists:**
+   The hooks resolve `.planning/.active_plan` first and fall back to legacy `task_plan.md`. If no plan exists, they stay silent by design.
 
-4. **Check for YAML errors:**
+4. **Inspect hook ownership:**
+   Plugin installs register `hooks/hooks.json` at startup. Standalone skill hooks register only after `/planning-with-files` is invoked for that session. Use `/hooks` and Claude debug logs to confirm that only the intended route is active.
+
+5. **Check for configuration errors:**
    Run Claude Code with debug mode:
    ```bash
    claude --debug
@@ -129,15 +125,16 @@ If files are missing, they may have been created in:
 
 ---
 
-## SessionStart hook not showing message
+## SessionStart hook appears silent
 
-**Issue:** The "Ready" message doesn't appear when starting Claude Code.
+**Issue:** No planning-with-files message appears when starting Claude Code.
 
 **Solution:**
 
-1. SessionStart hooks require Claude Code v2.1.0+
-2. The hook only fires once per session
-3. If you've already started a session, restart Claude Code
+1. Silence is correct when no active plan exists.
+2. `SessionStart` is a plugin-route feature; standalone skill installs do not register it.
+3. With an active plan, inspect `/hooks` and the debug log to confirm the plugin descriptor was trusted and loaded from the installed cache.
+4. If the session was already open before installation or update, start a new Claude Code session.
 
 ---
 
@@ -147,9 +144,9 @@ If files are missing, they may have been created in:
 
 **Solution:**
 
-1. PostToolUse hooks require Claude Code v2.1.0+
-2. The hook only fires after successful Write/Edit operations
-3. Check the matcher pattern: it's set to `"Write|Edit"` only
+1. Confirm the plugin descriptor is trusted in `/hooks`, or invoke the standalone skill first.
+2. The hook fires only after a matched successful tool operation.
+3. Confirm only one installation route owns the hooks to avoid duplicate reminders.
 
 ---
 
