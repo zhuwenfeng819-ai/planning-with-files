@@ -67,7 +67,11 @@ jobs:
       - name: Push
         if: steps.check.outputs.changed == 'true'
         run: |
-          git push "${PUSH_URL}" HEAD:${TARGET_BRANCH}
+          if [ "${MIRROR_MODE}" = "true" ]; then
+            git push --force-with-lease "${PUSH_URL}" HEAD:${TARGET_BRANCH}
+          else
+            git push "${PUSH_URL}" HEAD:${TARGET_BRANCH}
+          fi
           git push "${PUSH_URL}" --tags --force || echo "tag 推送被跳过"
 
       - name: Summary
