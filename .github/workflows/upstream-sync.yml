@@ -19,7 +19,6 @@ jobs:
       UPSTREAM_REPO: OthmanAdi/planning-with-files
       UPSTREAM_BRANCH: master
       TARGET_BRANCH: master
-      MIRROR_MODE: "false"
       PUSH_URL: https://x-access-token:${{ secrets.SYNC_TOKEN }}@github.com/${{ github.repository }}.git
     steps:
       - name: Checkout
@@ -51,13 +50,10 @@ jobs:
           set -e
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if [ "${MIRROR_MODE}" = "true" ] && ! git merge-base --is-ancestor HEAD upstream/${UPSTREAM_BRANCH}; then
-            echo "镜像模式：本地历史与上游无共同祖先，直接对齐上游"
-            git reset --hard upstream/${UPSTREAM_BRANCH}
-          elif git merge --ff-only upstream/${UPSTREAM_BRANCH}; then
+          if git merge --ff-only upstream/${UPSTREAM_BRANCH}; then
             echo "fast-forward 同步完成"
-          elif git merge --no-edit -X theirs upstream/${UPSTREAM_BRANCH}; then
-            echo "存在自有提交，已合并上游（冲突处以上游为准）"
+          elif git merge --no-edit -X theirs --allow-unrelated-histories upstream/${UPSTREAM_BRANCH}; then
+            echo "已合并上游（冲突处以上游为准；无共同祖先时亦可合并）"
           else
             git merge --abort || true
             echo "::error::自动合并失败，需要手动处理"
@@ -67,11 +63,7 @@ jobs:
       - name: Push
         if: steps.check.outputs.changed == 'true'
         run: |
-          if [ "${MIRROR_MODE}" = "true" ]; then
-            git push --force-with-lease "${PUSH_URL}" HEAD:${TARGET_BRANCH}
-          else
-            git push "${PUSH_URL}" HEAD:${TARGET_BRANCH}
-          fi
+          git push "${PUSH_URL}" HEAD:${TARGET_BRANCH}
           git push "${PUSH_URL}" --tags --force || echo "tag 推送被跳过"
 
       - name: Summary
