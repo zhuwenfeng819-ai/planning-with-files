@@ -1,0 +1,98 @@
+{
+  "description": "Qoder lifecycle hooks for planning-with-files plugin installs",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact|new",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ". \"${QODER_PLUGIN_ROOT}/.qoder-plugin/run-hook.sh\"",
+            "timeout": 10,
+            "statusMessage": "Loading planning context",
+            "shell": "bash"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ". \"${QODER_PLUGIN_ROOT}/.qoder-plugin/run-hook.sh\"",
+            "timeout": 10,
+            "shell": "bash"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|Read|Glob|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ". \"${QODER_PLUGIN_ROOT}/.qoder-plugin/run-hook.sh\"",
+            "timeout": 10,
+            "statusMessage": "Checking plan before tool use",
+            "shell": "bash"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ". \"${QODER_PLUGIN_ROOT}/.qoder-plugin/run-hook.sh\"",
+            "timeout": 10,
+            "shell": "bash"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ". \"${QODER_PLUGIN_ROOT}/.qoder-plugin/run-hook.sh\"",
+            "timeout": 10,
+            "statusMessage": "Reviewing changes against plan",
+            "shell": "bash"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ". \"${QODER_PLUGIN_ROOT}/.qoder-plugin/run-hook.sh\"",
+            "timeout": 10,
+            "statusMessage": "Preparing planning context before compact",
+            "shell": "bash"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ". \"${QODER_PLUGIN_ROOT}/.qoder-plugin/run-hook.sh\"",
+            "timeout": 30,
+            "statusMessage": "Checking planning completion",
+            "shell": "bash"
+          }
+        ]
+      }
+    ]
+  }
+}
