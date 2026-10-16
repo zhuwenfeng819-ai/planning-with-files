@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.24.1] - 2026-10-16
+
+### Fixed
+- Frontmatter validation discovers the twelve hidden adapter skill copies as well as the six visible skills. Temporary fixtures cover hidden valid and malformed YAML and excluded directories; an independent Git inventory guards future tracked adapters while source archives retain filesystem validation (#316, PRs #318 and #322).
+- The KiloCode guide's six Additional Resources links resolve to the canonical examples, reference and scripts. Global and project installation locations remain visible as inline paths (#314, PR #317).
+
+### Changed
+- The contributor guide documents Python 3.12, Node 22, PyYAML and the Windows shell prerequisite, lists all six CI jobs, and provides native plugin commands that preserve the repository root between suites and stop each suite after a failed command (#315, PR #321).
+
+### Thanks
+- Ensar (@Enard52), for the KiloCode resource links and hidden-adapter discovery fixtures (PRs #317 and #318).
+- Amirreza Hosseini (@Amiirhosseini), for the contributor setup guide and tracked-skill inventory proposal (PRs #321 and #322), and the overlapping KiloCode link fix (PR #320).
+
 ## [3.24.0] - 2026-10-10
 
 ### Added

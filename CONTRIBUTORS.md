@@ -107,6 +107,14 @@ These amazing people have contributed code, documentation, or significant improv
 
 ### Other Contributors
 
+- **[Ensar](https://github.com/Enard52)**, [PR #317](https://github.com/OthmanAdi/planning-with-files/pull/317), [PR #318](https://github.com/OthmanAdi/planning-with-files/pull/318)
+  - Repaired the KiloCode guide's six canonical resource links.
+  - Added hidden-adapter skill discovery and isolated fixtures for valid and malformed frontmatter and excluded directories.
+
+- **[Amirreza Hosseini](https://github.com/Amiirhosseini)**, [PR #321](https://github.com/OthmanAdi/planning-with-files/pull/321), [PR #322](https://github.com/OthmanAdi/planning-with-files/pull/322), [PR #320](https://github.com/OthmanAdi/planning-with-files/pull/320)
+  - Documented contributor test prerequisites, all six CI suites and native plugin commands.
+  - Proposed the exhaustive tracked-skill inventory retained from the overlapping frontmatter fix, and independently submitted the overlapping KiloCode link repair.
+
 - **[calm](https://github.com/shouldnotappearcalm)**, [PR #313](https://github.com/OthmanAdi/planning-with-files/pull/313)
   - Added the native Qoder plugin manifest, lifecycle hook registration, installation guide and execution tests.
 
@@ -479,6 +487,6 @@ If you've contributed and don't see your name here, please open an issue! We wan
 
 ---
 
-**Total Contributors:** 83 (82 community contributors plus the maintainer)
+**Total Contributors:** 85 (84 community contributors plus the maintainer)
 
-*Last updated: 2026-10-10*
+*Last updated: 2026-10-16*
