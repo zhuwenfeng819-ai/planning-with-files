@@ -107,6 +107,9 @@ These amazing people have contributed code, documentation, or significant improv
 
 ### Other Contributors
 
+- **[littleblack LB](https://github.com/littleblacklb)**, [PR #324](https://github.com/OthmanAdi/planning-with-files/pull/324)
+  - Reported repeated Pi parity plan injection and implemented unchanged-view suppression with confirmed-delivery tracking, session and selection isolation, recovery invalidation and regression tests.
+
 - **[Ensar](https://github.com/Enard52)**, [PR #317](https://github.com/OthmanAdi/planning-with-files/pull/317), [PR #318](https://github.com/OthmanAdi/planning-with-files/pull/318)
   - Repaired the KiloCode guide's six canonical resource links.
   - Added hidden-adapter skill discovery and isolated fixtures for valid and malformed frontmatter and excluded directories.
@@ -487,6 +490,6 @@ If you've contributed and don't see your name here, please open an issue! We wan
 
 ---
 
-**Total Contributors:** 85 (84 community contributors plus the maintainer)
+**Total Contributors:** 105 (104 community contributors plus the maintainer)
 
-*Last updated: 2026-10-16*
+*Last updated: 2026-10-17*

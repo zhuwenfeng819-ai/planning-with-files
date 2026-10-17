@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.24.2] - 2026-10-17
+
+### Fixed
+- Pi extension 1.2.7 suppresses unchanged 30-line pre-tool plan views in parity mode after confirmed turn-start context insertion. Visible edits queue one refresh, with delivery state scoped to the session, selected plan and mode and invalidated during recovery or failed runs. Execution approval and whole-plan attestation still run before suppression; `PWF_PRETOOL=always` restores the previous per-leaf reminders (#323, PR #324).
+
+### Changed
+- The contributor total includes every credited identity, including reporters and testers. The README portrait grid now includes all 104 community contributors.
+
+### Thanks
+- littleblack LB (@littleblacklb), for reporting repeated Pi plan injection and implementing delivery tracking, recovery handling and regression tests (#323, PR #324).
+
 ## [3.24.1] - 2026-10-16
 
 ### Fixed
