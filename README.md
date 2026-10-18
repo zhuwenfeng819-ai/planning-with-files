@@ -245,6 +245,7 @@ One hook fire measures 289ms wall-clock since the v3.6.0 optimization, down from
 
 | Version | Highlights |
 |---------|------------|
+| **v3.24.3** | Pi verifies the exact plan snapshot used for context and phase counts; selected-attestation read failures stay blocking. The guide clarifies explicit re-attestation after progress edits (#326). |
 | **v3.24.2** | Pi parity mode suppresses unchanged pre-tool plan views after confirmed context insertion, with visible-edit refresh, session isolation and recovery invalidation. Approval and attestation remain checked; `PWF_PRETOOL=always` restores prior Pi per-leaf reminders (#323, PR #324). |
 | **v3.24.1** | Validate hidden adapter frontmatter, repair KiloCode resource links, and document the prerequisites and commands for all six CI suites (#314, #315, #316). |
 | **v3.24.0** | Native Qoder CLI plugin with isolated hook execution and the CLI completion gate (PR #313). Claude Code refreshes PreToolUse context only when the selected view changes, with session isolation, recovery resets and an always-inject opt-out (#312). |

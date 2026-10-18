@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, join, sep } from "node:path";
 
@@ -20,6 +21,11 @@ export const SESSION_PLAN_AMBIGUOUS_NOTICE =
 
 export interface PlanStatus extends PlanPaths {
 	exists: boolean;
+	// Digest of the same raw read used for the text and phase counts below.
+	// Undefined means that the selected plan could not be read.
+	planSha256?: string;
+	// Keep the selected attestation binding even if the file later disappears.
+	attestationPath?: string;
 	closed: boolean;
 	totalPhases: number;
 	completePhases: number;
@@ -36,6 +42,20 @@ function safeRead(path: string): string {
 	} catch {
 		return "";
 	}
+}
+
+function selectAttestationPath(candidates: string[]): string | undefined {
+	for (const candidate of candidates) {
+		try {
+			lstatSync(candidate);
+			return candidate;
+		} catch (error) {
+			// Only absence allows a fallback. Permission or other lookup errors
+			// retain this candidate so verification fails closed on its read.
+			if ((error as NodeJS.ErrnoException).code !== "ENOENT") return candidate;
+		}
+	}
+	return undefined;
 }
 
 // Wall-clock times inside the injected progress tail move on every fire, so the
@@ -250,7 +270,7 @@ export function resolvePlanPaths(sessionCwd: string): PlanPaths {
 
 export function readPlanStatus(cwd: string): PlanStatus {
 	const paths = resolvePlanPaths(cwd);
-	if (!paths.planPath || !existsSync(paths.planPath)) {
+	if (!paths.planPath) {
 		return {
 			...paths,
 			exists: false,
@@ -265,7 +285,16 @@ export function readPlanStatus(cwd: string): PlanStatus {
 		};
 	}
 
-	const planContent = safeRead(paths.planPath);
+	const attestationPath = selectAttestationPath(paths.attestationCandidates);
+	let planBytes: Buffer | undefined;
+	try {
+		planBytes = readFileSync(paths.planPath);
+	} catch {
+		// Keep the selected path and attestation, but no digest. A later read
+		// must not approve an empty snapshot after a transient read failure.
+	}
+	const planSha256 = planBytes === undefined ? undefined : createHash("sha256").update(planBytes).digest("hex");
+	const planContent = planBytes?.toString("utf-8") ?? "";
 	const closed = /<!--\s*pwf:\s*closed\s*-->/i.test(planContent);
 	const lines = planContent.split("\n");
 
@@ -301,6 +330,8 @@ export function readPlanStatus(cwd: string): PlanStatus {
 	return {
 		...paths,
 		exists: true,
+		planSha256,
+		attestationPath,
 		closed,
 		totalPhases: total,
 		completePhases: complete,

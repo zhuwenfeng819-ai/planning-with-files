@@ -283,6 +283,52 @@ describe("Pi extension runtime handlers", () => {
 		expect(result).toBeUndefined();
 	});
 
+	it("before_agent_start rejects unapproved captured text after approved disk bytes are restored", async () => {
+		const approved = incompletePlan();
+		const cwd = makeWorkspace(approved);
+		attestPlan(cwd, approved);
+		const pi = loadExtension();
+		const ctx = createContext(cwd);
+		await approvePlan(pi, ctx);
+		const unapproved = "# UNAPPROVED SNAPSHOT\n" + completePlan();
+		writeFileSync(join(cwd, ".planning", "demo", "task_plan.md"), unapproved);
+		// Status publication is between reading the plan and validating it.
+		ctx.ui.setStatus.mockImplementationOnce(() => {
+			writeFileSync(join(cwd, ".planning", "demo", "task_plan.md"), approved);
+		});
+
+		const result = await emit(pi, "before_agent_start", {}, ctx);
+
+		expect(result.message.content).toContain("[PLAN TAMPERED");
+		expect(result.message.content).toContain(`actual=  ${sha256(unapproved)}`);
+		expect(result.message.content).not.toContain("UNAPPROVED SNAPSHOT");
+		expect(result.message.content).not.toContain("===BEGIN PLAN DATA===");
+	});
+
+	it("tool_call rejects unapproved captured text after approved disk bytes are restored", async () => {
+		const approved = incompletePlan();
+		const cwd = makeWorkspace(approved);
+		attestPlan(cwd, approved);
+		const pi = loadExtension();
+		const ctx = createContext(cwd);
+		await approvePlan(pi, ctx);
+		await deliverStart(pi, ctx);
+		const unapproved = "# UNAPPROVED SNAPSHOT\n" + completePlan();
+		writeFileSync(join(cwd, ".planning", "demo", "task_plan.md"), unapproved);
+		ctx.sessionManager.getLeafId.mockImplementationOnce(() => {
+			writeFileSync(join(cwd, ".planning", "demo", "task_plan.md"), approved);
+			return "leaf-2";
+		});
+
+		await readTool(pi, ctx);
+
+		expect(pi.sendMessage).toHaveBeenCalledTimes(1);
+		const content = pi.sendMessage.mock.calls[0][0].content;
+		expect(content).toContain("[PLAN TAMPERED");
+		expect(content).toContain(`actual=  ${sha256(unapproved)}`);
+		expect(content).not.toContain("UNAPPROVED SNAPSHOT");
+	});
+
 	it("refuses an attached session's shared-pointer plan until PLAN_ID selects one", async () => {
 		const cwd = makeWorkspace();
 		const secondPlan = join(cwd, ".planning", "second");

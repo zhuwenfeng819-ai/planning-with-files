@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.24.3] - 2026-10-17
+
+### Security
+- Pi extension 1.2.8 verifies the raw plan snapshot used for injected text and phase counts. Replacing the live file between those reads can no longer make a different snapshot pass attestation. Missing or unreadable selected attestations remain blocking failures, including when a root fallback exists.
+
+### Changed
+- The attestation guide explains why checkbox, phase-status and Next Step edits require explicit re-attestation. Strict behavior remains unchanged; no automatic re-attestation or separate progress system was added (#326).
+
+### Thanks
+- littleblack LB (@littleblacklb), for the progress-attestation workflow report and safety requirements that prompted this review (#326).
+
 ## [3.24.2] - 2026-10-17
 
 ### Fixed

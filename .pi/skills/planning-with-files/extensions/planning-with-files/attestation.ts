@@ -1,5 +1,4 @@
-import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import type { PlanStatus } from "./plan.ts";
 
 export interface AttestationCheck {
@@ -16,10 +15,9 @@ function normalizeHash(value: string): string | undefined {
 	return hash;
 }
 
-function sha256File(path: string): string | undefined {
+function readExpectedHash(path: string): string | undefined {
 	try {
-		const content = readFileSync(path);
-		return createHash("sha256").update(content).digest("hex");
+		return normalizeHash(readFileSync(path, "utf-8"));
 	} catch {
 		return undefined;
 	}
@@ -30,17 +28,19 @@ export function checkPlanAttestation(status: PlanStatus): AttestationCheck {
 		return { enabled: false, tampered: false };
 	}
 
-	const attestationPath = status.attestationCandidates.find((candidate) => existsSync(candidate));
+	const attestationPath = status.attestationPath;
 	if (!attestationPath) {
 		return { enabled: false, tampered: false };
 	}
 
-	const expected = normalizeHash(readFileSync(attestationPath, "utf-8"));
+	const expected = readExpectedHash(attestationPath);
 	if (!expected) {
 		return { enabled: true, tampered: true, attestationPath };
 	}
 
-	const actual = sha256File(status.planPath);
+	// Reopening the plan here could verify different bytes from the text and
+	// phase state captured by readPlanStatus. Validate that snapshot only.
+	const actual = status.planSha256;
 	if (!actual) {
 		return { enabled: true, tampered: true, expected, attestationPath };
 	}

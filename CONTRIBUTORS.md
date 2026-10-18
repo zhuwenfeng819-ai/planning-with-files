@@ -109,6 +109,7 @@ These amazing people have contributed code, documentation, or significant improv
 
 - **[littleblack LB](https://github.com/littleblacklb)**, [PR #324](https://github.com/OthmanAdi/planning-with-files/pull/324)
   - Reported repeated Pi parity plan injection and implemented unchanged-view suppression with confirmed-delivery tracking, session and selection isolation, recovery invalidation and regression tests.
+  - Reported progress-attestation workflow friction and specified safety requirements, prompting the Pi snapshot verification review ([issue #326](https://github.com/OthmanAdi/planning-with-files/issues/326)).
 
 - **[Ensar](https://github.com/Enard52)**, [PR #317](https://github.com/OthmanAdi/planning-with-files/pull/317), [PR #318](https://github.com/OthmanAdi/planning-with-files/pull/318)
   - Repaired the KiloCode guide's six canonical resource links.

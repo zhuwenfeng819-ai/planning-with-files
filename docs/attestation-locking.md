@@ -18,6 +18,15 @@ matches its saved digest. Stronger protection against a writer that controls the
 whole planning directory requires a separate trust boundary, such as permissions
 that protect the approval record from that writer.
 
+## Routine progress updates
+
+Whole-file attestation includes task checkboxes, phase status and Next Step.
+Changing only `[ ]` to `[x]` therefore requires explicit re-attestation too.
+Keep running notes in `progress.md`. After an intentional plan edit, review the
+changed content and run `/plan-attest` again. Hooks do not approve edits
+automatically, and a checked box is a progress claim, not evidence of completed
+work.
+
 ## Write path
 
 When you run `sh scripts/attest-plan.sh`, the script:
