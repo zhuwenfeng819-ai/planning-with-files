@@ -916,7 +916,7 @@ class HermesFirstClassTests(unittest.TestCase):
         ctx = FakeContext()
         plugin.register(ctx)
         self.assertEqual(
-            ["planning_with_files_init", "planning_with_files_status", "planning_with_files_check_complete"],
+            ["planning_with_files_init", "planning_with_files_status", "planning_with_files_check_complete", "planning_with_files_select"],
             ctx.tools,
         )
         self.assertEqual({"pre_llm_call", "post_tool_call", "pre_verify"}, set(ctx.hooks))
@@ -929,7 +929,7 @@ class HermesFirstClassTests(unittest.TestCase):
     def test_register_survives_a_host_without_commands_or_skills(self) -> None:
         ctx = FakeContext(with_commands=False, with_skills=False)
         plugin.register(ctx)
-        self.assertEqual(3, len(ctx.tools))
+        self.assertEqual(4, len(ctx.tools))
         self.assertEqual({"pre_llm_call", "post_tool_call", "pre_verify"}, set(ctx.hooks))
         self.assertEqual({}, ctx.commands)
         self.assertEqual({}, ctx.skills)

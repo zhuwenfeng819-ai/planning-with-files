@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import json
+import re
 import stat
 from pathlib import Path
 from typing import Any
@@ -21,6 +23,8 @@ from .paths import (
     resolve_plan_dir,
 )
 from .planning_files import evaluate_gate, normalize_wall_clock
+from .session_binding import bind, binding_root, current_binding, current_session_id, scoped_hook
+from .tools import validated_plan_path
 
 ATTACH_LEGACY = "legacy"      # no .planning/sessions directory: single-session setup
 ATTACH_ATTACHED = "attached"  # sessions directory armed and this session holds a sentinel
@@ -153,7 +157,7 @@ def _resolve_plan(project_dir: Path, *, explicit: bool = False) -> tuple[Path | 
 
 def _session_id(kwargs: dict[str, Any]) -> str:
     """Use Hermes' session identity, with its documented tool task fallback."""
-    return str(kwargs.get("session_id") or kwargs.get("task_id") or "")
+    return current_session_id() or str(kwargs.get("session_id") or kwargs.get("task_id") or "")
 
 
 def _locate(
@@ -223,6 +227,7 @@ def build_user_prompt_context(project_dir: Path, plan_dir: Path | None = None) -
     return "\n\n".join(parts)
 
 
+@scoped_hook
 def pre_llm_call(**kwargs: Any) -> dict[str, str] | None:
     project_dir, plan_dir, conflicts, session_id, selector_required = _locate(kwargs)
     if project_dir is None:
@@ -254,9 +259,113 @@ def pre_llm_call(**kwargs: Any) -> dict[str, str] | None:
     return {"context": "\n\n".join(parts)}
 
 
+def _successful_file_result(tool_name: str, kwargs: dict[str, Any]) -> dict[str, Any] | None:
+    if kwargs.get("status", "ok") != "ok" or kwargs.get("error_type") or kwargs.get("error_message"):
+        return None
+    result = kwargs.get("result")
+    if isinstance(result, str):
+        try:
+            result = json.loads(result)
+        except (ValueError, TypeError):
+            return None
+    if not isinstance(result, dict) or result.get("error") or result.get("success") is False or result.get("not_found"):
+        return None
+    if tool_name == "read_file":
+        return result if isinstance(result.get("content"), str) or result.get("status") == "unchanged" else None
+    if tool_name == "write_file":
+        return result if isinstance(result.get("bytes_written"), int) or result.get("success") is True else None
+    if tool_name == "patch":
+        return result if result.get("success") is True and not result.get("no_change") else None
+    return None
+
+
+def _auto_bind(tool_name: str, args: dict[str, Any], kwargs: dict[str, Any]) -> None:
+    if not current_session_id() or os.environ.get("PLANNING_DISABLED", "") == "1":
+        return
+    existing = current_binding()
+    if existing is not None:
+        root = binding_root(existing)
+        if tool_name == "read_file" or root is None:
+            return
+        if validated_plan_path(root / ".planning" / existing.plan_id) is None:
+            return  # stale/corrupt bindings need an explicit select or clear
+    result = _successful_file_result(tool_name, kwargs)
+    if result is None:
+        return
+    paths = []
+    for key in ("files_modified", "files_created", "files_deleted"):
+        if isinstance(result.get(key), list):
+            paths.extend(result[key])
+    if not paths:
+        path = result.get("resolved_path") or args.get("path")
+        paths = [path] if path else []
+        if not paths and tool_name == "patch" and isinstance(args.get("patch"), str):
+            # Hermes' V4A parser accepts these anchored headers. Prefer its
+            # resolved files_modified list above; never parse arbitrary prose.
+            for line in args["patch"].splitlines():
+                match = re.match(r"^\*\*\* (?:Update|Add|Delete) File: (.+)$", line)
+                if match:
+                    paths.append(match.group(1).strip())
+                move = re.match(r"^\*\*\* Move File: (.+?) -> (.+)$", line)
+                if move:
+                    paths.extend(move.groups())
+    targets: set[tuple[Path, str]] = set()
+    # Relative file paths are resolved only against Hermes' runtime cwd, not a
+    # previous plan binding or the backend's launch directory.
+    try:
+        from agent.runtime_cwd import resolve_agent_cwd
+
+        runtime = resolve_agent_cwd()
+    except (ImportError, OSError, RuntimeError, ValueError):
+        runtime = None
+    for value in paths:
+        if not isinstance(value, str) or not value:
+            return
+        path = Path(value).expanduser()
+        if not path.is_absolute():
+            if not isinstance(runtime, Path):
+                return
+            path = runtime / path
+        try:
+            from .context_frame import _assert_no_reparse_components
+
+            _assert_no_reparse_components(path.parent)
+            if path.exists() or path.is_symlink():
+                _assert_no_reparse_components(path)
+                if not path.is_file():
+                    continue
+            elif tool_name != "patch":
+                continue
+            # A successful patch may have deleted a file. Its plan identity
+            # still competes with every other effect before target validation.
+            path = path.resolve(strict=False)
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if tool_name == "read_file" and path.name != "task_plan.md":
+            continue
+        for directory in path.parents:
+            if directory.parent.name == ".planning":
+                if tool_name == "read_file" and path.parent != directory:
+                    break
+                targets.add((directory.parent.parent, directory.name))
+                break
+    if len(targets) != 1:
+        return
+    project, slug = targets.pop()
+    if (validated_plan_path(project / ".planning" / slug) is not None
+            and _session_attachment(project, current_session_id()) != ATTACH_DETACHED):
+        bind(project, slug)
+
+
+@scoped_hook
 def post_tool_call(**kwargs: Any) -> None:
     tool_name = str(kwargs.get("tool_name", ""))
     args = kwargs.get("args") or {}
+    if not isinstance(args, dict):
+        return None
+    _auto_bind(tool_name, args, kwargs)
+    if "result" in kwargs and _successful_file_result(tool_name, kwargs) is None:
+        return None
     if tool_name == "write_file":
         if not args.get("path") or "content" not in args:
             return None
@@ -275,6 +384,7 @@ def post_tool_call(**kwargs: Any) -> None:
     return None
 
 
+@scoped_hook
 def pre_verify(**kwargs: Any) -> dict[str, str] | None:
     """Completion gate on Hermes' verification-loop hook (gated mode only).
 

@@ -1,6 +1,6 @@
 # Hermes Agent Setup
 
-planning-with-files treats [Hermes Agent](https://github.com/NousResearch/hermes-agent) by Nous Research as a first-class host: the Hermes CLI, the Hermes TUI and gateway sessions, and the Hermes Desktop app all run the same adapter. Everything on this page was verified against the Hermes v0.19.1 source and a live Hermes install on Windows; the Hermes 0.21.3 working-directory rewrite described below was reproduced with the 0.21.0 source. The POSIX paths follow Hermes' own defaults.
+planning-with-files treats [Hermes Agent](https://github.com/NousResearch/hermes-agent) by Nous Research as a first-class host: the Hermes CLI, the Hermes TUI and gateway sessions, and the Hermes Desktop app all run the same adapter. The base installation was verified against the Hermes v0.19.1 source and a live Hermes install on Windows; the Hermes 0.21.3 working-directory rewrite described below was reproduced with the 0.21.0 source. The session-selector hook and tool contracts were checked against the v0.22.2 source. The POSIX paths follow Hermes' own defaults.
 
 The adapter has two parts:
 
@@ -11,9 +11,9 @@ The adapter has two parts:
 
 | Surface | Provided by the plugin |
 |---|---|
-| Tools | `planning_with_files_init` (root plan, or `.planning/YYYY-MM-DD-<slug>/` when given a name; `mode: autonomous` or `gated` writes the v3 markers and attests the plan), `planning_with_files_status`, `planning_with_files_check_complete` |
+| Tools | `planning_with_files_init` (root plan, or `.planning/YYYY-MM-DD-<slug>/` when given a name; `mode: autonomous` or `gated` writes the v3 markers and attests the plan), `planning_with_files_select` (select or clear this session's named plan), `planning_with_files_status`, `planning_with_files_check_complete` |
 | Slash commands | `/pwf [--autonomous\|--gated] [--template analytics] [plan name]`, `/pwf-status`, `/plan-status` |
-| `pre_llm_call` | Injects the active plan at the start of every turn: the framed head of `task_plan.md`, the normalized tail of `progress.md`, and a pointer to `findings.md`. A non-empty `PLAN_ID` binds one named plan. Without it, one selectable plan may resolve through `.planning/.active_plan`, the newest named plan, or the legacy root; two or more selectable same-root plans are ambiguous and get the one-line `Multiple plans are available` notice instead of plan content. A shared pointer or timestamp never binds a Hermes session. The same slug validation, containment checks and nested-root ambiguity rule as `inject-plan.sh` apply: `PWF_PLAN_ROOT` pins only the project root, an attached session only admits that session, and neither chooses one of several same-root plans |
+| `pre_llm_call` | Injects the active plan at the start of every turn: the framed head of `task_plan.md`, the normalized tail of `progress.md`, and a pointer to `findings.md`. A session selection supplies its own project root and named plan. Without one, a non-empty process `PLAN_ID` binds one named plan; otherwise two or more selectable same-root plans get a `Multiple plans are available` notice. A shared pointer or timestamp never binds a conversation. Existing slug, containment, no-link, nested-root and session-attachment checks remain active |
 | `post_tool_call` | After `write_file` and `patch`, queues a reminder to update `progress.md` and the phase status; delivered with the next injection |
 | `pre_verify` | The completion gate in gated mode: while an `in_progress` phase remains, the plugin asks Hermes to keep going instead of finishing the turn. Legacy and autonomous plans are never held |
 | Attestation | Autonomous and gated plans inject only when `.attestation` (slug) or `.plan-attestation` (root) matches the SHA-256 of `task_plan.md`; a tampered or unattested v3 plan is refused with a `context blocked` line |
@@ -45,7 +45,7 @@ hermes plugins enable planning-with-files
 ### 3. Verify
 
 ```bash
-hermes plugins list        # planning-with-files ... enabled ... 0.2.0
+hermes plugins list        # planning-with-files ... enabled ... 0.3.0
 hermes chat
 > /pwf Night run
 > /pwf-status
@@ -85,8 +85,8 @@ What was reproduced here: the bridge in the Hermes 0.21.0 source, driven with th
 What the plugin does since v3.20.2:
 
 - The failure is no longer silent. When the resolved directory holds no plan and the launch directory of a CLI session does, `pre_llm_call` injects one line instead of nothing: `[planning-with-files] Hermes resolved <dir> as the working directory, but the launch directory <project> holds a plan. Nothing injected. Pin the thread with PWF_PLAN_ROOT=<project>.` The plugin never switches to the launch directory on its own: Hermes' terminal and file tools follow the rewritten directory too, so which root the session should use is the operator's call. The line is CLI-only (other surfaces have no launch directory), and it stays silent for `hermes -w` worktree sessions (Hermes points `TERMINAL_CWD` at `<repo>/.worktrees/<name>` without a chdir, by design), for a launch directory without planning state, and for a launch directory whose session isolation refuses this session anyway.
-- `/pwf-status` prints the same line under `No planning files found.` when the launch directory holds a plan, so the diagnostic command tells you what the hooks see, and `/pwf` appends it when the plan it just created went somewhere other than a launch directory that already holds one. Both stay silent for worktree sessions and for contexts whose working directory Hermes has pinned per session at command time; the TUI and Desktop dispatch plugin commands outside that context, where `/pwf-status` has always reported the backend's directory rather than the session's.
-- `/pwf` and `/pwf-status` honor `PWF_PLAN_ROOT` exactly like the hooks. A pin that does not resolve is reported instead of creating or reading a plan in whatever directory Hermes named. Without a pin the slash commands follow the Hermes working directory (a command handler receives only its arguments, no platform), so on an affected host an unpinned `/pwf name` creates the plan under the home directory and prints that path; the `planning_with_files_init` tool uses the process working directory instead.
+- `/pwf-status` prints the same line under `No planning files found.` when the launch directory holds a plan, so the diagnostic command tells you what the hooks see, and `/pwf` appends it when the plan it just created went somewhere other than a launch directory that already holds one. Both stay silent for worktree sessions and for contexts whose working directory Hermes has pinned per session at command time. Older TUI and Desktop command dispatch runs outside that context and reports the backend's directory; a dispatch that supplies trusted session context can use the saved session selection.
+- `/pwf` and `/pwf-status` honor the session selection, or `PWF_PLAN_ROOT` when unbound, exactly like the hooks. A pin that does not resolve is reported instead of creating or reading a plan in whatever directory Hermes named. Without a selector the slash commands and tools follow the Hermes working directory, so on an affected host an unpinned `/pwf name` can create the plan under the home directory and print that path. Tool `cwd` arguments must match an existing session selection; clear that selection before initializing another project.
 
 On an affected host, start project-scoped CLI sessions with the pin until the upstream fix lands: `PWF_PLAN_ROOT=/abs/path/to/project hermes chat` (PowerShell: `$env:PWF_PLAN_ROOT = "C:\path\to\project"`). The pin fails closed when the path does not resolve. The shell-hook route below reads the process working directory and is not affected. The pin restores the plan injection only; the agent's terminal and file tools keep following the rewritten directory (`hermes chat --in <project>` does not change that on an affected build), so ask the model to work with absolute paths. Keep planning files out of your home directory: on an affected host a `~/.planning/` or `~/task_plan.md` would be resolved by every session started anywhere.
 
@@ -94,9 +94,37 @@ On an affected host, start project-scoped CLI sessions with the pin until the up
 
 - `/pwf` creates `task_plan.md`, `findings.md` and `progress.md` in the project root. `/pwf Night run` creates an isolated `.planning/YYYY-MM-DD-night-run/` plan and points `.planning/.active_plan` at it. `/pwf --gated Night run` also writes `.mode`, `.nonce`, resets the gate counter and attests the plan, mirroring `init-session.sh --gated`.
 - `/pwf-status` (alias `/plan-status`) prints the active plan id, mode, attestation state, current phase, phase counts and logged errors.
-- The model can call `planning_with_files_init`, `planning_with_files_status` and `planning_with_files_check_complete` itself; the skill text tells it when.
+- The model can call `planning_with_files_init`, `planning_with_files_select`, `planning_with_files_status` and `planning_with_files_check_complete` itself; the skill text tells it when.
 - Load the skill text with `/planning-with-files` or `skill_view("planning-with-files")` when you want the workflow instructions in context. With the plugin enabled the skill is also reachable as `planning-with-files:planning-with-files` through `skill_view`, even when the hub install was skipped.
 - Edit the plan after `/pwf --gated` or `/pwf --autonomous`? Re-attest it: `sh scripts/attest-plan.sh` from the canonical skill, or delete and re-create the plan with `/pwf`. An unattested v3 plan is refused at injection by design.
+
+## Select a plan per conversation
+
+Gateway and Desktop backends can serve several conversations in one process. Use `planning_with_files_select` to choose a named plan for the current conversation without changing the process environment:
+
+```text
+planning_with_files_select(plan="2026-10-20-night-run", cwd="/abs/project")
+planning_with_files_select(plan="/abs/other-project/.planning/2026-10-20-review")
+planning_with_files_select(plan="")
+```
+
+The first call selects an exact directory name under that project's `.planning/`. The second selects an existing plan in another project. An empty `plan` clears this conversation's selection and restores the process selectors and existing ambiguity behavior.
+
+With no `cwd`, an exact slug is checked against the current Hermes working directory, the selected project if present, and the process `PWF_PLAN_ROOT` pin. If more than one matches, the tool refuses and lists the candidates. Use an absolute plan-directory path or an explicit `cwd` to disambiguate. The tool does not scan arbitrary project trees or accept partial slugs.
+
+The adapter also selects a plan after these successful operations:
+
+- `planning_with_files_init` with a name selects the plan it created for the calling session.
+- `read_file` of a named plan's `task_plan.md` selects it only when that session has no selection. Reading another plan for reference leaves an existing selection in place.
+- `write_file` or `patch` inside one named plan can switch the selection. Failed operations and patches spanning several plans do not select one.
+
+Selection uses the session identity supplied by Hermes, never a session ID from model arguments or a process-wide `HERMES_SESSION_ID`. A host call without trusted session identity cannot save a selection. Slash-command identity support varies by Hermes version; use the tools when a command dispatch does not carry that context.
+
+Each selected conversation has an atomically replaced record under `<HERMES_HOME>/planning-with-files/sessions/`, named by a hash of its session ID. Records survive adapter reloads and backend restarts until explicitly cleared. Separate profiles use separate directories. The adapter applies the selected root and slug through request-local context; it never rewrites `os.environ` or uses `.planning/.active_plan` as conversation identity.
+
+Status, completion checks, reminders and the completion gate use that selection. A supplied tool `cwd` must match the selected project; a conflicting target returns an error. Clear the selection before intentionally initializing a different project. A deleted, invalid or linked selected plan yields no plan, with no fallback to a peer plan or the root plan. Selection does not bypass `.planning/sessions/` admission or plan attestation.
+
+An unbound conversation keeps the existing `PLAN_ID` and `PWF_PLAN_ROOT` behavior. Several plans without a selector remain ambiguous.
 
 ## The completion gate on Hermes
 
@@ -136,10 +164,12 @@ Hermes asks for consent on first use (`hermes hooks list` shows the allowlist st
 ## Validation
 
 ```bash
-python -m pytest tests/test_hermes_adapter.py tests/test_hermes_first_class.py -q
+python -m pytest tests/test_hermes_adapter.py tests/test_hermes_first_class.py tests/test_hermes_session_binding.py -q
 ```
 
 `tests/test_hermes_first_class.py` covers slug resolution, the `PWF_PLAN_ROOT` pin, the ambiguity rule, `PLANNING_DISABLED`, slug attestation, the `pre_verify` gate (block, counter, stall, cap), `/pwf` and `/pwf-status`, bundled-skill registration, the Python completion fallback, the shell-hook bridge, and the Hermes 0.21.3 working-directory cases of #272 (the launch-directory notice and where it stays silent, the `/pwf-status` hint, the pinned slash commands).
+
+`tests/test_hermes_session_binding.py` covers conversation selection, persisted state, concurrency, successful file-operation selection, rejected selectors and the existing resolver protections.
 
 ## Integration Notes
 

@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.25.0] - 2026-10-20
+
+### Added
+- Hermes adapter 0.3.0 selects named plans per conversation with `planning_with_files_select`, successful named initialization, and successful file operations. Profile-local session records survive backend restarts, and request-local selectors let concurrent conversations use different plans without changing the process environment (#328).
+
+### Fixed
+- Hermes tools, commands, reminders and the completion gate use the selected session plan. Missing or invalid selected plans stay unavailable until explicitly changed or cleared; conflicting tool directory arguments return an error. Unbound ambiguity refusal, session admission, no-link checks and plan attestation remain active. Failed operations, reference reads and patches spanning several plans do not switch an existing selection (#328).
+
+### Thanks
+- Piotr Maziarz (@Vyzygota), for reproducing the Hermes gateway selection gap and specifying per-session binding, cross-root selection and concurrency requirements (#328).
+
 ## [3.24.3] - 2026-10-17
 
 ### Security

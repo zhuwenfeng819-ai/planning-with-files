@@ -441,6 +441,8 @@ These developers have created forks that extend the functionality:
 
 Thank you to everyone who reported issues, provided feedback, and helped test fixes:
 
+- **[Piotr Maziarz](https://github.com/Vyzygota)**, [Issue #328](https://github.com/OthmanAdi/planning-with-files/issues/328)
+  - Reproduced the Hermes gateway's process-wide plan-selection gap and specified session binding, cross-root selection and concurrency requirements, implemented in v3.25.0.
 - [@nazeshinjite](https://github.com/nazeshinjite) - Issue #133 (Stop hook portability failure on Windows Git Bash — two-root-cause diagnosis with full Claude output, fixed in v2.34.1)
 - [@msuadOf](https://github.com/msuadOf) - Issue #93 (TMPDIR environment fix for plugin install)
 - [@DorianZheng](https://github.com/DorianZheng) - Issue #84 (BoxLite sandbox integration proposal)
@@ -491,6 +493,6 @@ If you've contributed and don't see your name here, please open an issue! We wan
 
 ---
 
-**Total Contributors:** 105 (104 community contributors plus the maintainer)
+**Total Contributors:** 106 (105 community contributors plus the maintainer)
 
-*Last updated: 2026-10-17*
+*Last updated: 2026-10-20*

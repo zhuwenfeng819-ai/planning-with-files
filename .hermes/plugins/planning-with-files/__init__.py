@@ -16,9 +16,11 @@ from .hooks import (
     pre_verify,
 )
 from .paths import effective_project_root, normalize_cwd, plan_root_is_pinned, plugin_skill_dir
+from .session_binding import scoped_command, scoped_tool
 from .tools import (
     planning_with_files_check_complete,
     planning_with_files_init,
+    planning_with_files_select,
     planning_with_files_status,
 )
 
@@ -187,18 +189,18 @@ def _register_commands(ctx: Any) -> None:
     try:
         register(
             name="pwf",
-            handler=pwf_command,
+            handler=scoped_command(pwf_command),
             description="Start planning-with-files: create the plan files (root or .planning/<slug>), optional --autonomous / --gated",
             args_hint="[--gated] [plan name]",
         )
         register(
             name="pwf-status",
-            handler=status_command,
+            handler=scoped_command(status_command),
             description="Show the active planning-with-files plan: phase counts, mode, attestation",
         )
         register(
             name="plan-status",
-            handler=status_command,
+            handler=scoped_command(status_command),
             description="Alias of /pwf-status",
         )
     except Exception:  # noqa: BLE001 - a host without slash-command support must not lose the tools
@@ -239,18 +241,18 @@ def register(ctx: Any) -> None:
                 "type": "object",
                 "properties": {
                     "template": {"type": "string", "description": "Template name, e.g. default or analytics."},
-                    "cwd": {"type": "string", "description": "Target project directory. Defaults to current working directory."},
+                    "cwd": {"type": "string", "description": "Project directory. Defaults to this session's selected project, otherwise Hermes' runtime cwd. Must match any session selection."},
                     "name": {"type": "string", "description": "Optional plan name; creates .planning/YYYY-MM-DD-<slug>/ and sets it active."},
                     "mode": {"type": "string", "description": "Optional v3 mode: autonomous or gated. Empty keeps legacy behavior."},
                 },
             },
         },
-        handler=lambda args, **kw: planning_with_files_init(
+        handler=scoped_tool(lambda args: planning_with_files_init(
             template=args.get("template", "default"),
             cwd=args.get("cwd", ""),
             name=args.get("name", ""),
             mode=args.get("mode", ""),
-        ),
+        )),
         description="Initialize planning-with-files state files.",
     )
     ctx.register_tool(
@@ -262,11 +264,11 @@ def register(ctx: Any) -> None:
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "cwd": {"type": "string", "description": "Target project directory. Defaults to current working directory."},
+                    "cwd": {"type": "string", "description": "Project directory. Defaults to this session's selected project, otherwise Hermes' runtime cwd. Must match any session selection."},
                 },
             },
         },
-        handler=lambda args, **kw: planning_with_files_status(cwd=args.get("cwd", "")),
+        handler=scoped_tool(lambda args: planning_with_files_status(cwd=args.get("cwd", ""))),
         description="Show planning-with-files status summary.",
     )
     ctx.register_tool(
@@ -278,12 +280,33 @@ def register(ctx: Any) -> None:
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "cwd": {"type": "string", "description": "Target project directory. Defaults to current working directory."},
+                    "cwd": {"type": "string", "description": "Project directory. Defaults to this session's selected project, otherwise Hermes' runtime cwd. Must match any session selection."},
                 },
             },
         },
-        handler=lambda args, **kw: planning_with_files_check_complete(cwd=args.get("cwd", "")),
+        handler=scoped_tool(lambda args: planning_with_files_check_complete(cwd=args.get("cwd", ""))),
         description="Check whether all planning phases are complete.",
+    )
+    ctx.register_tool(
+        name="planning_with_files_select",
+        toolset="terminal",
+        schema={
+            "name": "planning_with_files_select",
+            "description": (
+                "Select a plan for this Hermes session without changing the process environment. "
+                "Pass an exact .planning directory slug or an absolute .planning/<slug> directory; "
+                "an empty plan clears this session's selection."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "plan": {"type": "string", "description": "Exact plan slug, absolute plan directory, or empty to clear."},
+                    "cwd": {"type": "string", "description": "Optional project root to disambiguate an exact slug."},
+                },
+            },
+        },
+        handler=scoped_tool(lambda args: planning_with_files_select(plan=args.get("plan", ""), cwd=args.get("cwd", ""))),
+        description="Select or clear this Hermes session's active plan.",
     )
     ctx.register_hook("pre_llm_call", pre_llm_call)
     ctx.register_hook("post_tool_call", post_tool_call)

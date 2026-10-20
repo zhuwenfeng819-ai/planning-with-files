@@ -4,6 +4,7 @@ import stat
 from pathlib import Path
 
 from .constants import PLUGIN_DIR
+from .session_binding import binding_root, current_binding
 
 SKILL_DIR_NAME = "planning-with-files"
 
@@ -14,9 +15,12 @@ _SLUG_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._-]*$")
 _REPARSE_ATTR = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
 MULTIPLE_PLANS_NOTICE = (
     "[planning-with-files] Multiple plans are available. "
-    "Set PLAN_ID=<slug> for this session; nothing injected."
+    "Use planning_with_files_select(plan=<slug>) for this session. Set PLAN_ID=<slug> for a process selector; nothing injected."
 )
-MULTIPLE_PLANS_MESSAGE = "Multiple plans are available. Set PLAN_ID=<slug> to select one."
+MULTIPLE_PLANS_MESSAGE = (
+    "Multiple plans are available. Use planning_with_files_select(plan=<slug>) for this session. "
+    "Set PLAN_ID=<slug> for a process selector."
+)
 
 
 def has_skill_assets(candidate: Path) -> bool:
@@ -157,7 +161,7 @@ def slug_is_valid(slug: str) -> bool:
 
 def plan_root_is_pinned() -> bool:
     """True when PWF_PLAN_ROOT is set; the pin itself is validated by effective_project_root."""
-    return bool(os.environ.get("PWF_PLAN_ROOT", "").strip())
+    return current_binding() is not None or bool(os.environ.get("PWF_PLAN_ROOT", "").strip())
 
 
 def effective_project_root(project_dir: Path) -> Path | None:
@@ -168,6 +172,9 @@ def effective_project_root(project_dir: Path) -> Path | None:
     UNC path and carries no link component; anything else returns None so
     the hooks inject nothing rather than falling back to an unrelated plan.
     """
+    binding = current_binding()
+    if binding is not None:
+        return binding_root(binding)
     pin = os.environ.get("PWF_PLAN_ROOT", "").strip()
     if not pin:
         return project_dir
@@ -185,7 +192,7 @@ def effective_project_root(project_dir: Path) -> Path | None:
 
 def _slug_plan_dir(planning_root: Path, slug: str) -> Path | None:
     """Return .planning/<slug> when it is a contained, real directory with a plan."""
-    if not slug_is_valid(slug):
+    if not slug_is_valid(slug) or not _is_real_dir(planning_root):
         return None
     candidate = planning_root / slug
     if _is_link_or_reparse(candidate) or not candidate.is_dir():
@@ -241,8 +248,19 @@ def count_selectable_plans(project_dir: Path) -> int:
 
 def multiple_plans_require_selector(project_dir: Path, *, plan_id: str | None = None) -> bool:
     """True when shared pointer/mtime guesses cannot identify this session's plan."""
-    requested = plan_id if plan_id is not None else os.environ.get("PLAN_ID", "").strip()
+    requested = _requested_plan_id(plan_id)
     return not requested and count_selectable_plans(project_dir) > 1
+
+
+def _requested_plan_id(plan_id: str | None) -> str:
+    if plan_id is not None:
+        return plan_id
+    binding = current_binding()
+    if binding is not None:
+        # Even a malformed record is binding, so an empty/invalid stored slug
+        # cannot turn into pointer/mtime fallback.
+        return binding.plan_id or "!invalid-session-selection"
+    return os.environ.get("PLAN_ID", "").strip()
 
 
 def nested_live_plans(root: Path) -> list[str]:
@@ -303,7 +321,7 @@ def resolve_plan(
     of several same-root plans; that still requires ``PLAN_ID``.
     """
     planning_root = project_dir / ".planning"
-    requested = plan_id if plan_id is not None else os.environ.get("PLAN_ID", "").strip()
+    requested = _requested_plan_id(plan_id)
     if requested:
         # A set PLAN_ID is a BINDING, not a hint (issue #237).
         #
